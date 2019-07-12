@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+   <style></style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>JS Bin</title>
+  
+</head>
+<body>
+  <form action="">
+    <button id="button" >generate images font</button><br />
+    <p id="status" style="margin: 5px; color: #000"></p>
+  </form><br />
+  <canvas id="canvas" width="300" height="50"></canvas>
+<script>
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var btn = document.getElementById('button');
+  var text = document.getElementById('status');
+  var getFonts = fetch('http://localhost:6969/fontsList.json');
+  var width = 300;
+  var height = 50;
+  canvas.width = width;
+  canvas.height = height;
+
+  function setFont(f, cb) {
+      var head = document.head || document.getElementsByTagName('head')[0];
+      if (f.type === 'google') {
+        var link = document.createElement('link');
+        link.href = 'https://fonts.googleapis.com/css?family='+ f.family +':'+ f.variants.join().replace(/italic/, 'i');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.id = 'font_family_' + f.family;
+
+        var text = document.createElement('span');
+        text.id = 'font_family_text_' + f.family;
+        text.style.font = '25px '+ f.family;
+        text.innerText = f.family;
+
+        link.onload = function(e) {
+          cb(link.id, text.id, f);
+        }
+        head.appendChild(link);
+        document.body.appendChild(text);
+      } else if(f.type === 'Common') {
+        cb(null, null, f);
+      }
+  }
+
+  function drawFont(f, cb) {
+    setTimeout(function(){
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.font = '28px '+ f.family;
+      // console.log(ctx.font)
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = '#000';
+      ctx.fillText(f.family, 15, height / 2);
+      cb(canvas.toDataURL("image/png").replace("image/png", "image/octet-stream"));
+    }, 3000);
+  }
+
+  function saveFont(file, f, cb) {
+    var data = new FormData();
+    data.append('coverFont', dataURLtoBlob(file), f.family);
+    fetch('http://localhost:6969/uploadfile', {
+      method: 'POST',
+      body: data,
+    }).then(cb);
+  }
+
+  function dataURLtoBlob(dataurl) {
+    var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], {type:mime});
+  }
+
+
+  btn.addEventListener('click', function() {
+    btn.setAttribute('disabled', true);
+
+    getFonts.then(function(res) {
+      return res.text();
+    }).then(function(fonts) {
+      var data = JSON.parse(fonts);
+      text.innerText = 'status: fonts list loaded';
+      generate(data, 0);
+    });
+  });
+
+
+  function generate(data, index) {
+    setFont(data[index], function(idLink, idText, f) {
+      drawFont(f, function(file) {
+        saveFont(file, f, function(res) {
+          if (res.ok) {
+            index += 1;
+            text.innerText = 'status: loaded '+ (index+1) +' of '+ data.length;
+            // console.log('success!');
+            if (index < data.length) {
+              !idLink || document.getElementById(idLink).remove();
+              !idText || document.getElementById(idText).remove();
+              generate(data, index);
+            }
+
+            if (data.length === index) {
+              text.innerText = 'status: all fonts saved successfully!';
+            }
+          } else {
+            text.innerText = 'status: something went wrong!';
+          }
+        });
+      });
+    });
+  }
+</script>
+</body>
+</html>
